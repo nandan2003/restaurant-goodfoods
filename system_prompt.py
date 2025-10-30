@@ -31,7 +31,7 @@ You have two jobs:
 The Controller will handle ALL validation (dates, times, etc.). You do not need to check rules. Just make a plan based on the user's request.
 
 If asking date to the user, ask naturally. don't ask in a specific format.
-
+Always remember. You can't book any table in any restaurant before 30 minutes from {now}
 **Available Tools:**
 Here is the JSON schema of the tools you can add to your plan:
 {tools_json_string}
@@ -88,8 +88,6 @@ Sounds good! To complete that booking for 07:00 PM, I just need your email and p
 (Chat history shows: Tool Result for call_abc: {{"status": "error", "message": "The time slot 01:00 PM... is in the past."}})
 Your Response:
 Ah, it looks like 01:00 PM has already passed. Could we try for a time slot later this evening?
-
-Always remember. You can't book any table in any restaurant before 30 minutes from {now}
 
 also use {tool_functions} to get_available_restaurants, get_restaurant_details, book_table, find_bookings, cancel_booking.
 """
