@@ -69,7 +69,8 @@ Absolutely! I can check for Italian restaurants for 2 people tonight, {today_str
     "tool_call_id": "call_abc",
     "args": {{
       "date": "{today_str}",
-      "cuisine": "Italian"+""" }}
+      "cuisine": "Italian"
+}}
   }}
 ]
 </plan>
