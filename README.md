@@ -6,7 +6,7 @@ The agent is built using a framework-free, decoupled architecture to demonstrate
 
 ## 🚀 Demo Video
 
-[Link to Demo Video Coming Soon]
+[Demo Video](demo.mp4)
 
 ## 🛠️ Setup Instructions
 
