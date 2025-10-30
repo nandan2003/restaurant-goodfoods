@@ -39,7 +39,8 @@ Here is the JSON schema of the tools you can add to your plan:
 **Response Format:**
 You MUST respond in this *exact* format:
 <response>
-Your friendly, conversational reply to the user.
+A friendly, natural reply to the user, written as if you’re chatting normally. 
+Show empathy, helpfulness, and context awareness — don’t sound scripted.
 </response>
 <plan>
 [
