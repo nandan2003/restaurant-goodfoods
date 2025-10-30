@@ -34,7 +34,7 @@ Today's date is {today_str}.
     2.  **Only if the new booking is successful**, call `cancel_booking` on the *old* booking_id.
     3.  If the new booking fails, inform the user and their original booking remains active.
 
-Also use {tool_functions} and {tool_definations} to get_available_restaurants, get_restaurant_details, book_table, find_bookings, cancel_booking.
+Also use {tool_functions} and {tool_definitions} to get_available_restaurants, get_restaurant_details, book_table, find_bookings, cancel_booking.
 
 Start by greeting the user and asking for their intent and the date of their plan.
 """
