@@ -1,5 +1,3 @@
-# In llm_client.py
-
 import os
 from openai import AzureOpenAI
 from dotenv import load_dotenv
@@ -21,27 +19,35 @@ def get_llm_client():
         azure_endpoint=endpoint,
         api_key=api_key,
         api_version=api_version,
-        # --- UPDATED SECTION ---
-        timeout=30.0,      # Set a 30-second timeout (default is often 10s)
-        max_retries=1      # Allow one retry on transient errors like timeouts
-        # --- END OF UPDATE ---
+        timeout=30.0,
+        max_retries=1
     )
 
 def chat_completion(messages: list[dict], tools: list[dict] = None) -> dict:
-    # ... (This function remains unchanged)
+    """
+    Calls the Azure OpenAI LLM with the current conversation history.
+    Conditionally includes tool-calling parameters.
+    """
     client = get_llm_client()
     deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
     
+    # --- UPDATED: Build kwargs dynamically ---
+    kwargs = {
+        "model": deployment,
+        "messages": messages
+    }
+    
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
+    # --- END OF UPDATE ---
+
     try:
-        response = client.chat.completions.create(
-            model=deployment,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
+        # Pass the dynamically built arguments
+        response = client.chat.completions.create(**kwargs)
         return response.choices[0].message
     
     except Exception as e:
         print(f"Error calling Azure OpenAI: {e}")
-        # This error message will now be handled gracefully by agent.py
+        # Return a user-facing error message
         return {"role": "assistant", "content": f"Sorry, I encountered an error with the AI model: {e}"}
