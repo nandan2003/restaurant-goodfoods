@@ -1,0 +1,2 @@
+booking_id,customer_name,customer_email,customer_phone,restaurant_name,restaurant_address,party_size,time_slot,tables_reserved,status,special_requests,created_at,updated_at
+a2665d17,Nandan Vallamdasu,nandan.vallamdasu@outlook.com,8897606345,Shuddh Desi Khana,"F 7, Ranka Villa, Opposite Kalyani Motors, Bilekahalli Main Road, Bannerghatta Road, Bangalore",5,07:00 PM,2,cancelled,"1/2 kg red velvet cake with the message: ""You're Mine, Darling""",2025-10-31T00:10:58.836552,2025-10-31T00:15:34.682884
