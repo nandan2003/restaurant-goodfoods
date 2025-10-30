@@ -50,13 +50,19 @@ A decoupled, three-tier architecture is used to ensure scalability, maintainabil
 
 ### Documentation of Prompt Engineering Approach
 
-The agent uses a framework-free approach based on the **Model-Controller-Program (MCP)** architecture to manage the agentic loop. (not **Model Context Protocol** 😅)
+The agent is built from scratch using a two-step tool-calling loop, which is managed by the `agent.py` file. This framework-free approach relies on a powerful, dynamic system prompt to act as the "brain" of the agent.
 
-1.  **Model (LLM):** The LLM (`llm_client.py`, `system_prompt.py`) acts as the "Planner." It receives the conversation history and a detailed system prompt. Its job is to be conversational and to generate a JSON "plan" of tools to execute. It does *not* call tools directly.
-2.  **Controller (Validator):** A deterministic Python class (`validators.py`) intercepts the LLM's plan. It validates all arguments against strict business logic (e.g., date formats, booking windows, time rules) *before* any tool is executed. This prevents invalid API calls and ensures system integrity.
-3.  **Program (Tools):** A library of Python functions (`tools.py`) that perform real-world actions, such as querying the database (`data_manager.py`), booking a table, or fetching restaurant details.
+1. Dynamic System Prompt (The "Brain"):
+    * The `system_prompt.py` file generates a new, fresh prompt for every single user turn.
+    * This prompt is injected with the current date and time, which is critical for enforcing business logic.
+    * All business rules (e.g., 72-hour booking window, 30-minute advance notice, past-time rejection) are explicitly defined in this prompt. The LLM is instructed to validate the user's request against these rules before deciding to call a tool. This makes the LLM itself the primary "validator."
 
-This decoupled design makes the system highly maintainable, testable, and secure, as the stochastic LLM is sandboxed from the deterministic business logic and data layers.
+2. The Agent Loop (`agent.py`):
+    * Call 1 (Action): The agent calls the LLM (`llm_client.py`) with the full chat history, the dynamic system prompt, and the list of available tools from `tools.py`. The LLM's job is to either respond directly or return a `tool_calls` request.
+    * Tool Execution & Validation (The "Safety Net"): If the LLM requests a tool, the agent executes the corresponding Python function from `tools.py`. These tool functions contain a second, hard-coded layer of validation (e.g., `validate_booking_date`, `validate_booking_time`). This acts as a crucial safety net, ensuring system integrity even if the LLM fails to follow the prompt's rules.
+    * Call 2 (Synthesis): After the tool runs (or fails validation), the agent calls the LLM a second time. It sends the original history plus the new tool results. In this call, the `tools` parameter is set to `None`, which forces the LLM to generate a natural, user-friendly text response based on the data or error it just received.
+  
+This design places the primary logic and conversational control in the system prompt, while using the tool-level code as a robust "last line of defense" to create a reliable and secure agent.
 
 ### Bot Features
 
