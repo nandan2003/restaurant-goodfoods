@@ -17,10 +17,11 @@ def initialize_agent():
     if "messages" not in st.session_state:
         # Start with the system prompt (not displayed) 
         # and a hardcoded greeting (displayed).
-                new_greeting = (
+        new_greeting = ("""
             "Welcome to GoodFoods! 🍽️ I can help you find a table at any of our locations, "
             "give recommendations, or manage an existing booking.\n\n"
             "To get started, what would you like to do? And please let me know the **date** you're planning for."
+            """
         )
         system_prompt = get_system_prompt()
         st.session_state.messages = [
