@@ -14,7 +14,7 @@ To run the agent locally, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://[your-repo-url].git
+    git clone https://github.com/nandan2003/SarvamAI-Assignment.git
     cd SarvamAI-Assignment
     ```
 
