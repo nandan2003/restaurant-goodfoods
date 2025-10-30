@@ -1,0 +1,1 @@
+booking_id, costumer_name, costumer_email, costumer_phone, restaurant_name, restaurant_address, party_size, time_slot, tables_reserved, status, special_requests, created_at, updated_at
