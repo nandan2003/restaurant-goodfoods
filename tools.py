@@ -1,10 +1,11 @@
 import json
 import pandas as pd
 import data_manager
-from datetime import datetime, timedelta
+from datetime import datetime
+from validators import Validator # We need this to get valid slots
 
 # --- Tool Definitions (JSON Schema) ---
-# (This section is unchanged)
+# This is the "contract" for the Model (LLM)
 tool_definitions = [
     {
         "type": "function",
@@ -161,94 +162,16 @@ tool_definitions = [
     }
 ]
 
-# --- Validation Helper Functions ---
-
-def validate_booking_date(date_str: str) -> (bool, str, datetime.date):
-    """
-    Checks if the date is within the 0-72 hour window.
-    Returns (is_valid, error_message, date_obj)
-    """
-    try:
-        book_date = datetime.strptime(date_str, "%d.%m.%Y").date()
-    except ValueError:
-        return False, "Invalid date format. Please use DD.MM.YYYY.", None
-
-    today = datetime.now().date()
-    max_date = today + timedelta(days=3)
-
-    if not (today <= book_date <= max_date):
-        return False, f"Bookings are only allowed from today ({today.strftime('%d.%m.%Y')}) up to 3 days in advance ({max_date.strftime('%d.%m.%Y')}).", None
-    
-    return True, "", book_date
-
-# --- THIS FUNCTION IS UPDATED ---
-def validate_booking_time(book_date_obj: datetime.date, time_slot: str) -> (bool, str):
-    """
-    Checks if the booking time is valid (not in the past and at least 30 minutes from now).
-    """
-    try:
-        # Parse time slot (e.g., "07:00 PM")
-        book_time = datetime.strptime(time_slot, "%I:%M %p").time()
-        booking_datetime = datetime.combine(book_date_obj, book_time)
-        
-        now = datetime.now()
-        
-        # --- NEW LOGIC ---
-        # Check 1: Is the time in the past?
-        if booking_datetime < now:
-            return False, f"The time slot {time_slot} on {book_date_obj.strftime('%d.%m.%Y')} is in the past. Please select a future time."
-
-        # Check 2: Is it within the 30-minute buffer?
-        min_booking_time = now + timedelta(minutes=30)
-        if booking_datetime < min_booking_time:
-            return False, f"Bookings must be made at least 30 minutes in advance. The earliest time you can book for is around {min_booking_time.strftime('%I:%M %p')}."
-        # --- END NEW LOGIC ---
-            
-        return True, ""
-        
-    except Exception as e:
-        return False, f"Error parsing time slot: {e}"
-# --- END OF UPDATE ---
-
-
-def _get_valid_time_slots_for_date(book_date_obj: datetime.date) -> list[str]:
-    """
-    Returns a list of time slots that are valid for booking (i.e., in the future).
-    """
-    if book_date_obj > datetime.now().date():
-        return data_manager.TIME_SLOTS
-    
-    valid_slots = []
-    now = datetime.now()
-    min_booking_time = now + timedelta(minutes=30)
-    
-    for slot_str in data_manager.TIME_SLOTS:
-        try:
-            slot_time = datetime.strptime(slot_str, "%I:%M %p").time()
-            slot_datetime = datetime.combine(book_date_obj, slot_time)
-            
-            if slot_datetime >= min_booking_time:
-                valid_slots.append(slot_str)
-        except Exception:
-            continue 
-            
-    return valid_slots
-
-# --- Tool Function Implementations ---
-# (The rest of the file is unchanged, as the logic updates
-# are all within the helper functions we just fixed.)
+# --- Tool Function Implementations (Program Layer) ---
+# All validation has been REMOVED.
 
 def get_available_restaurants(date: str, cuisine: str = None, location: str = None, max_cost: int = None, min_rating: float = None) -> str:
     """Implementation for get_available_restaurants tool."""
-    
-    is_valid, error_msg, book_date_obj = validate_booking_date(date)
-    if not is_valid:
-        return json.dumps({"status": "error", "message": error_msg})
-
     try:
-        valid_slots_to_check = _get_valid_time_slots_for_date(book_date_obj)
-        if not valid_slots_to_check:
-            return json.dumps({"status": "ok", "restaurants": [], "message": "All available time slots for today are in the past or within the next 30 minutes."})
+        validator = Validator()
+        valid_slots_to_check, error = validator.get_valid_time_slots(date)
+        if error:
+            return json.dumps({"status": "ok", "restaurants": [], "message": error})
 
         df_data = data_manager.get_restaurant_data()
         df_avail = data_manager.get_availability(date)
@@ -272,7 +195,6 @@ def get_available_restaurants(date: str, cuisine: str = None, location: str = No
             return json.dumps({"status": "ok", "restaurants": []})
 
         available_restaurants = df_avail[df_avail[valid_slots_to_check].sum(axis=1) > 0]['Name']
-
         final_list = df_data[df_data['name'].isin(available_restaurants)]
         
         output_cols = ['name', 'location', 'cuisines', 'approx_cost(for two people)', 'rate']
@@ -285,13 +207,11 @@ def get_available_restaurants(date: str, cuisine: str = None, location: str = No
 
 def get_restaurant_details(date: str, restaurant_name: str) -> str:
     """Implementation for get_restaurant_details tool."""
-    
-    is_valid, error_msg, book_date_obj = validate_booking_date(date)
-    if not is_valid:
-        return json.dumps({"status": "error", "message": error_msg})
-
     try:
-        valid_slots_to_check = _get_valid_time_slots_for_date(book_date_obj)
+        validator = Validator()
+        valid_slots_to_check, error = validator.get_valid_time_slots(date)
+        if error:
+            return json.dumps({"status": "ok", "details": {"available_slots": [], "message": error}})
 
         df_data = data_manager.get_restaurant_data()
         df_avail = data_manager.get_availability(date)
@@ -300,7 +220,7 @@ def get_restaurant_details(date: str, restaurant_name: str) -> str:
         availability = df_avail[df_avail['Name'] == restaurant_name]
 
         if details.empty:
-            return json.dumps({"status": "error", "message": "Restaurant not found in main data."})
+            return json.dumps({"status": "error", "message": "Restaurant not found."})
         if availability.empty:
             return json.dumps({"status": "error", "message": "Restaurant not found in tracker."})
 
@@ -330,19 +250,7 @@ def get_restaurant_details(date: str, restaurant_name: str) -> str:
 
 def book_table(date: str, restaurant_name: str, time_slot: str, party_size: int, customer_name: str, customer_email: str, customer_phone: str, special_requests: str = None) -> str:
     """Implementation for book_table tool."""
-    
-    # 1. Validate Date (72-hour window)
-    is_valid_date, date_err, book_date_obj = validate_booking_date(date)
-    if not is_valid_date:
-        return json.dumps({"status": "error", "message": date_err})
-
-    # 2. Validate Time (Past check & 30-min advance)
-    is_valid_time, time_err = validate_booking_time(book_date_obj, time_slot)
-    if not is_valid_time:
-        return json.dumps({"status": "error", "message": time_err})
-
     try:
-        # 3. Check max party size
         df_data = data_manager.get_restaurant_data()
         restaurant_info = df_data[df_data['name'] == restaurant_name]
         if restaurant_info.empty:
@@ -352,7 +260,6 @@ def book_table(date: str, restaurant_name: str, time_slot: str, party_size: int,
         if party_size > max_size:
             return json.dumps({"status": "error", "message": f"Party size {party_size} exceeds the maximum of {max_size} for this restaurant."})
 
-        # 4. Check availability
         tables_needed = data_manager.calculate_tables_needed(party_size)
         df_avail = data_manager.get_availability(date)
         restaurant_avail = df_avail[df_avail['Name'] == restaurant_name]
@@ -365,7 +272,6 @@ def book_table(date: str, restaurant_name: str, time_slot: str, party_size: int,
         if tables_available < tables_needed:
             return json.dumps({"status": "error", "message": f"Not enough tables. Requested {tables_needed} (for {party_size} guests), but only {tables_available} available at {time_slot}."})
 
-        # 5. If all checks pass, proceed with booking
         success = data_manager.update_availability(date, restaurant_name, time_slot, -tables_needed)
         if not success:
             return json.dumps({"status": "error", "message": "Failed to update availability tracker."})
@@ -389,11 +295,6 @@ def book_table(date: str, restaurant_name: str, time_slot: str, party_size: int,
 
 def find_bookings(date: str, booking_id: str = None, customer_name: str = None, customer_email: str = None, customer_phone: str = None) -> str:
     """Implementation for find_bookings tool."""
-    
-    is_valid, error_msg, _ = validate_booking_date(date)
-    if not is_valid:
-        return json.dumps({"status": "error", "message": error_msg})
-
     try:
         df_bookings = data_manager.get_bookings(date)
         if df_bookings.empty:
@@ -417,11 +318,6 @@ def find_bookings(date: str, booking_id: str = None, customer_name: str = None, 
 
 def cancel_booking(date: str, booking_id: str) -> str:
     """Implementation for cancel_booking tool."""
-    
-    is_valid, error_msg, book_date_obj = validate_booking_date(date)
-    if not is_valid:
-        return json.dumps({"status": "error", "message": error_msg})
-
     try:
         df_bookings = data_manager.get_bookings(date)
         booking = df_bookings[df_bookings['booking_id'] == booking_id]
@@ -434,12 +330,13 @@ def cancel_booking(date: str, booking_id: str) -> str:
         if booking['status'] == 'cancelled':
             return json.dumps({"status": "error", "message": "This booking is already cancelled."})
 
-        # Check if it's too late to cancel
-        is_valid_time, time_err = validate_booking_time(book_date_obj, booking['time_slot'])
-        if not is_valid_time:
-            # This means the slot is in the past or within 30 minutes, so cancellation is disallowed.
-            # We can use the specific error message from the validation function.
-            return json.dumps({"status": "error", "message": f"Cannot cancel: {time_err}"})
+        # We can do a simple validation here
+        validator = Validator()
+        is_valid, error_msg, book_date_obj = validator._validate_date_window(date)
+        if is_valid: # Only check time if date is valid
+            is_valid_time, time_err = validator._validate_time_rules(book_date_obj, booking['time_slot'])
+            if not is_valid_time:
+                return json.dumps({"status": "error", "message": f"Cannot cancel: {time_err}"})
 
         tables_to_add_back = booking['tables_reserved']
         restaurant_name = booking['restaurant_name']
@@ -458,9 +355,7 @@ def cancel_booking(date: str, booking_id: str) -> str:
     except Exception as e:
         return json.dumps({"status": "error", "message": str(e)})
 
-
-# --- Tool Mapping ---
-# Maps the tool name (str) to the actual function
+# --- Tool Mapping (Program Layer) ---
 tool_functions = {
     "get_available_restaurants": get_available_restaurants,
     "get_restaurant_details": get_restaurant_details,

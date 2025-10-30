@@ -13,7 +13,7 @@ def get_llm_client():
     api_version = os.getenv("AZURE_OPENAI_API_VERSION")
 
     if not all([endpoint, api_key, deployment, api_version]):
-        raise ValueError("Please set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, AZURE_OPENAI_DEPLOYMENT_NAME, and AZURE_OPENAI_API_VERSION in your .env file.")
+        raise ValueError("Please set all AZURE_OPENAI environment variables.")
 
     return AzureOpenAI(
         azure_endpoint=endpoint,
@@ -23,31 +23,24 @@ def get_llm_client():
         max_retries=1
     )
 
-def chat_completion(messages: list[dict], tools: list[dict] = None) -> dict:
+def chat_completion(messages: list[dict]) -> str:
     """
-    Calls the Azure OpenAI LLM with the current conversation history.
-    Conditionally includes tool-calling parameters.
+    Calls the Azure OpenAI LLM. This is a simple text-in, text-out call.
+    The 'tools' and 'tool_choice' parameters are NOT used here.
     """
     client = get_llm_client()
     deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
     
-    # --- UPDATED: Build kwargs dynamically ---
-    kwargs = {
-        "model": deployment,
-        "messages": messages
-    }
-    
-    if tools:
-        kwargs["tools"] = tools
-        kwargs["tool_choice"] = "auto"
-    # --- END OF UPDATE ---
-
     try:
-        # Pass the dynamically built arguments
-        response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message
+        response = client.chat.completions.create(
+            model=deployment,
+            messages=messages
+            # No 'tools' or 'tool_choice'
+        )
+        # Return only the text content
+        return response.choices[0].message.content
     
     except Exception as e:
         print(f"Error calling Azure OpenAI: {e}")
-        # Return a user-facing error message
-        return {"role": "assistant", "content": f"Sorry, I encountered an error with the AI model: {e}"}
+        # Return a valid response structure for the parser to handle
+        return f"<response>Sorry, I encountered an error: {e}</response><plan>[]</plan>"
