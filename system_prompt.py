@@ -89,6 +89,7 @@ Sounds good! To complete that booking for 07:00 PM, I just need your email and p
 Your Response:
 Ah, it looks like 01:00 PM has already passed. Could we try for a time slot later this evening?
 
+Always remember. You can't book any table in any restaurant before 30 minutes from {now}
 
 also use {tool_functions} to get_available_restaurants, get_restaurant_details, book_table, find_bookings, cancel_booking.
 """
