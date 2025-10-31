@@ -1,46 +1,99 @@
 import data_manager
 from datetime import datetime
 import json
+import pandas as pd
 
 # --- Tool Functions ---
 
 def get_available_restaurants(date: str, time_slot: str, party_size: int) -> str:
     """
     Gets all available restaurants for a given date, time slot, and party size.
-    Returns a JSON string of a list of restaurants.
-    """
-    print(f"Searching availability: Date: {date}, Slot: {time_slot}, Size: {party_size}")
+    If the requested time slot is not available, finds and uses the nearest available time slot.
     
+    Combines availability data with restaurant details (name, address, price, location, rating, and reviews).
+    
+    Returns a JSON string of a list of available restaurants.
+    """
+    
+    print(f"Searching availability: Date: {date}, Slot: {time_slot}, Size: {party_size}")
+
     try:
+        # Load availability data for the given date
         availability_df = data_manager.get_availability(date)
         if availability_df.empty:
             return f"No availability data found for {date}."
-        
+
+        # If requested time slot is not available, find nearest one
         if time_slot not in availability_df.columns:
-            return f"Error: '{time_slot}' is not a valid time slot."
-        
-        # Calculate required tables
+            print(f"Requested time slot '{time_slot}' not found. Searching nearest available slot...")
+
+            # Try to parse available slots as times
+            try:
+                # Convert slot column names (e.g., "18:00") to datetime objects
+                slot_times = [
+                    datetime.strptime(slot, "%H:%M") for slot in availability_df.columns if ":" in slot
+                ]
+                requested_time = datetime.strptime(time_slot, "%H:%M")
+
+                # Find nearest available time slot
+                nearest_slot = min(slot_times, key=lambda t: abs(t - requested_time))
+                nearest_slot_str = nearest_slot.strftime("%H:%M")
+
+                print(f"Nearest available slot found: {nearest_slot_str}")
+                time_slot = nearest_slot_str
+            except Exception as e:
+                return f"Error: '{time_slot}' is not a valid or comparable time slot. ({e})"
+
+        # Load restaurant metadata
+        restaurant_df = data_manager.get_restaurant_data()
+        if restaurant_df.empty:
+            return "Error: Restaurant data file is empty or missing."
+
+        # Calculate required number of tables for the party size
         tables_needed = data_manager.calculate_tables_needed(party_size)
-        
-        # Filter restaurants that have enough tables
+
+        # Filter restaurants with enough tables
         available = availability_df[availability_df[time_slot] >= tables_needed]
-        
         if available.empty:
-            return f"No restaurants have {tables_needed} table(s) available for {party_size} guests at {time_slot} on {date}."
-        
-        # Select columns to return to the user
-        cols_to_show = ['Name', 'Location', 'Address', 'Phone', time_slot]
-        available_restaurants = available[cols_to_show].copy()
-        
-        # Rename the time_slot column for clarity
-        available_restaurants.rename(columns={time_slot: 'Tables_Available'}, inplace=True)
-        
+            return (
+                f"No restaurants have {tables_needed} table(s) available for "
+                f"{party_size} guests at {time_slot} on {date}."
+            )
+
+        # Merge availability with restaurant metadata
+        merged = available.merge(restaurant_df, on="Name", how="inner")
+
+        # Select relevant columns for output
+        cols_to_show = [
+            "Name",
+            "Location", 
+            "Price",
+            "Rating",
+            time_slot,
+        ]
+
+        # Keep only columns that exist in the merged data
+        cols_to_show = [col for col in cols_to_show if col in merged.columns]
+
+        available_restaurants = merged[cols_to_show].copy()
+
+        # Rename time slot column for clarity
+        available_restaurants.rename(columns={time_slot: "Tables_Available"}, inplace=True)
+
+        # Add metadata to indicate which slot was used
+        output = {
+            "date": date,
+            "requested_time_slot": time_slot,
+            "restaurants": available_restaurants.to_dict(orient="records")
+        }
+
         # Convert to JSON string
-        return available_restaurants.to_json(orient='records')
-        
+        return pd.Series(output).to_json()
+
     except Exception as e:
         print(f"ERROR in get_available_restaurants: {e}")
         return f"An unexpected error occurred: {e}"
+
 
 
 def book_table(customer_name: str, customer_email: str, customer_phone: str, 
