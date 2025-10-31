@@ -22,7 +22,7 @@ def get_llm_client():
         api_key=api_key,
         api_version=api_version,
         # --- UPDATED SECTION ---
-        timeout=30.0,      # Set a 30-second timeout (default is often 10s)
+        timeout=60.0,      # Set a 30-second timeout (default is often 10s)
         max_retries=1      # Allow one retry on transient errors like timeouts
         # --- END OF UPDATE ---
     )
