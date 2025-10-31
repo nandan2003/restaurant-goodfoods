@@ -94,8 +94,11 @@ class ReservationAgent:
             )
 
             if not synthesis_response.content:
+                auto_user_msg = {"role": "user", "content": "Done?"}
+                full_history_with_auto_msg = full_history_for_synthesis + [auto_user_msg]
+
                 synthesis_response = llm_client.chat_completion(
-                    full_history_for_synthesis, 
+                    full_history_with_auto_msg,
                     self.tool_definitions
                 )
 

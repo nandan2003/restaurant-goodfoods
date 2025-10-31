@@ -42,5 +42,7 @@ Also use {tool_functions} and {tool_definitions} to get_available_restaurants, g
 *All your responses must be based on the datasets. So use the datasets effectively.*
 You MUST update the datasets after each confirmation.
 
+Use 12 hour time. Not 24 hour time. like 10:00 AM, 10:00 PM
+
 Start by greeting the user and asking for their intent and the date of their plan.
 """

@@ -9,38 +9,50 @@ def get_available_restaurants(date: str, time_slot: str, party_size: int) -> str
     """
     Gets all available restaurants for a given date, time slot, and party size.
     If the requested time slot is not available, finds and uses the nearest available time slot.
-    
+
     Combines availability data with restaurant details (name, address, price, location, rating, and reviews).
-    
+
     Returns a JSON string of a list of available restaurants.
     """
-    
+
     print(f"Searching availability: Date: {date}, Slot: {time_slot}, Size: {party_size}")
 
     try:
-        # Load availability data for the given date
+        # Load availability data
         availability_df = data_manager.get_availability(date)
         if availability_df.empty:
             return f"No availability data found for {date}."
 
-        # If requested time slot is not available, find nearest one
-        if time_slot not in availability_df.columns:
+        # Normalize column names (make consistent and lowercase)
+        availability_df.columns = [col.strip().lower() for col in availability_df.columns]
+
+        # Check for time slot existence
+        time_slot_lower = time_slot.lower()
+        if time_slot_lower not in availability_df.columns:
             print(f"Requested time slot '{time_slot}' not found. Searching nearest available slot...")
 
-            # Try to parse available slots as times
             try:
-                # Convert slot column names (e.g., "18:00") to datetime objects
-                slot_times = [
-                    datetime.strptime(slot, "%H:%M") for slot in availability_df.columns if ":" in slot
-                ]
-                requested_time = datetime.strptime(time_slot, "%H:%M")
+                slot_times = []
+                for slot in availability_df.columns:
+                    try:
+                        slot_times.append(datetime.strptime(slot, "%H:%M"))
+                    except ValueError:
+                        try:
+                            slot_times.append(datetime.strptime(slot, "%I:%M %p"))
+                        except ValueError:
+                            continue
 
-                # Find nearest available time slot
+                # Parse requested time
+                try:
+                    requested_time = datetime.strptime(time_slot, "%H:%M")
+                except ValueError:
+                    requested_time = datetime.strptime(time_slot, "%I:%M %p")
+
+                # Find nearest available slot
                 nearest_slot = min(slot_times, key=lambda t: abs(t - requested_time))
-                nearest_slot_str = nearest_slot.strftime("%H:%M")
-
-                print(f"Nearest available slot found: {nearest_slot_str}")
-                time_slot = nearest_slot_str
+                time_slot = nearest_slot.strftime("%H:%M")
+                time_slot_lower = time_slot.lower()
+                print(f"Nearest available slot found: {time_slot}")
             except Exception as e:
                 return f"Error: '{time_slot}' is not a valid or comparable time slot. ({e})"
 
@@ -49,46 +61,71 @@ def get_available_restaurants(date: str, time_slot: str, party_size: int) -> str
         if restaurant_df.empty:
             return "Error: Restaurant data file is empty or missing."
 
-        # Calculate required number of tables for the party size
+        # Normalize restaurant_df columns too
+        restaurant_df.columns = [col.strip().lower() for col in restaurant_df.columns]
+
+        # Identify matching column names for merging
+        if "name" in availability_df.columns:
+            avail_name_col = "name"
+        elif "restaurant" in availability_df.columns:
+            avail_name_col = "restaurant"
+        else:
+            return f"Error: No restaurant name column found in availability data. Columns: {availability_df.columns.tolist()}"
+
+        if "name" in restaurant_df.columns:
+            rest_name_col = "name"
+        elif "restaurant" in restaurant_df.columns:
+            rest_name_col = "restaurant"
+        else:
+            return f"Error: No restaurant name column found in restaurant data. Columns: {restaurant_df.columns.tolist()}"
+
+        # Calculate tables needed
         tables_needed = data_manager.calculate_tables_needed(party_size)
 
         # Filter restaurants with enough tables
-        available = availability_df[availability_df[time_slot] >= tables_needed]
+        available = availability_df[availability_df[time_slot_lower] >= tables_needed]
         if available.empty:
             return (
                 f"No restaurants have {tables_needed} table(s) available for "
                 f"{party_size} guests at {time_slot} on {date}."
             )
 
-        # Merge availability with restaurant metadata
-        merged = available.merge(restaurant_df, on="Name", how="inner")
+        # Merge availability and restaurant data
+        merged = available.merge(
+            restaurant_df,
+            left_on=avail_name_col,
+            right_on=rest_name_col,
+            how="inner"
+        )
 
-        # Select relevant columns for output
+        # Debug: print columns found after merge
+        print(f"Merged columns: {merged.columns.tolist()}")
+
+        # Select relevant columns for output (only keep what exists)
         cols_to_show = [
-            "Name",
-            "Location", 
-            "Price",
-            "Rating",
-            time_slot,
+            avail_name_col,
+            "location",
+            "price",
+            "rating",
+            "reviews"
         ]
-
-        # Keep only columns that exist in the merged data
         cols_to_show = [col for col in cols_to_show if col in merged.columns]
 
         available_restaurants = merged[cols_to_show].copy()
 
-        # Rename time slot column for clarity
-        available_restaurants.rename(columns={time_slot: "Tables_Available"}, inplace=True)
+        # Rename columns for clarity
+        available_restaurants.rename(columns={time_slot_lower: "tables_available"}, inplace=True)
+        available_restaurants.rename(columns={avail_name_col: "name"}, inplace=True)
 
-        # Add metadata to indicate which slot was used
+        # Build output object
         output = {
             "date": date,
-            "requested_time_slot": time_slot,
-            "restaurants": available_restaurants.to_dict(orient="records")
+            "used_time_slot": time_slot,
+            "restaurants": json.loads(available_restaurants.to_json(orient="records"))
         }
 
-        # Convert to JSON string
-        return pd.Series(output).to_json()
+        # Return as formatted JSON string
+        return json.dumps(output, indent=2)
 
     except Exception as e:
         print(f"ERROR in get_available_restaurants: {e}")
@@ -189,23 +226,66 @@ def book_table(customer_name: str, customer_email: str, customer_phone: str,
         return f"An unexpected error occurred: {e}"
 
 
-def get_booking_details(booking_id: str, date: str) -> str:
+def get_booking_details(booking_id: str = None, date: str = None, name: str = None, email: str = None) -> str:
     """
-    Retrieves the details for a specific booking ID and date.
-    Returns a JSON string of the booking details.
-    """
-    print(f"Getting details for booking: {booking_id} on {date}")
+    Retrieves the details for a specific booking.
+    You can fetch details using either:
+      - booking_id and date
+      - or name + email (+ date is optional but preferred)
     
+    Returns:
+        A JSON string with booking details or an error message.
+    """
+    print(f"Getting booking details | ID: {booking_id}, Name: {name}, Email: {email}, Date: {date}")
+
     try:
+        # --- Validate input ---
+        if not booking_id and not (name and email):
+            return "Error: Please provide either a booking ID or both name and email."
+
+        if not date:
+            return "Error: Please provide a booking date."
+
+        # --- Load bookings for the date ---
         bookings_df = data_manager.get_bookings(date)
-        booking_row = bookings_df[bookings_df['booking_id'] == booking_id]
+        if bookings_df.empty:
+            return f"No booking data found for {date}."
+
+        # --- Normalize column names (in case of case mismatches) ---
+        bookings_df.columns = [col.strip().lower() for col in bookings_df.columns]
+
+        # --- Search by booking ID ---
+        if booking_id:
+            booking_row = bookings_df[bookings_df["booking_id"].astype(str) == str(booking_id)]
+            if booking_row.empty:
+                return f"Error: Booking ID '{booking_id}' not found for date {date}."
         
-        if booking_row.empty:
-            return f"Error: Booking ID '{booking_id}' not found for date {date}."
-        
-        # Convert the single row to a JSON object string
-        return booking_row.iloc[0].to_json()
-        
+        # --- Or search by name and email ---
+        else:
+            if "name" not in bookings_df.columns or "email" not in bookings_df.columns:
+                return "Booking data does not contain 'name' or 'email' columns."
+
+            name_lower = name.strip().lower()
+            email_lower = email.strip().lower()
+
+            # Normalize in dataframe
+            bookings_df["name"] = bookings_df["name"].astype(str).str.strip().str.lower()
+            bookings_df["email"] = bookings_df["email"].astype(str).str.strip().str.lower()
+
+            booking_row = bookings_df[
+                (bookings_df["name"] == name_lower) &
+                (bookings_df["email"] == email_lower)
+            ]
+
+            if booking_row.empty:
+                return f"Error: No booking found for {name} ({email}) on {date}."
+
+        # --- Return single booking (if multiple, show first match) ---
+        booking_data = booking_row.iloc[0].to_dict()
+
+        # Convert to formatted JSON
+        return json.dumps(booking_data, indent=2)
+
     except Exception as e:
         print(f"ERROR in get_booking_details: {e}")
         return f"An unexpected error occurred: {e}"
