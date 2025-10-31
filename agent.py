@@ -1,5 +1,3 @@
-# In agent.py
-
 import json
 import llm_client
 import tools
@@ -94,6 +92,12 @@ class ReservationAgent:
                 full_history_for_synthesis, 
                 self.tool_definitions
             )
+
+            if not synthesis_response.content:
+                synthesis_response = llm_client.chat_completion(
+                    full_history_for_synthesis, 
+                    self.tool_definitions
+                )
 
             # --- Add robustness for the synthesis call too ---
             if isinstance(synthesis_response, dict) and synthesis_response.get("role") == "assistant":
