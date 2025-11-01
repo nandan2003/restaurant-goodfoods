@@ -8,6 +8,12 @@ The agent is built using a framework-free, decoupled architecture to demonstrate
 
 [Demo Video](demo.mp4)
 
+---
+### *Note:* 
+Hey, I've left the hardcoded API key for testing purposes so that you can just plug and play it. If you want to test with your own model, please do the necessary changes in `llm_client.py` file.
+
+---
+
 ## 🛠️ Setup Instructions
 
 To run the agent locally, follow these steps:
@@ -191,8 +197,3 @@ The solution is not designed to compete with diner networks like OpenTable but a
 * **Automated Reminders:** Build the (Yellow) feature to send SMS/email reminders to reduce no-shows.
 * **Group & Special Requests:** Fully implement the (Yellow) feature to handle large parties and special accommodations.
 * **Proactive Upselling:** Integrate the (Red) feature to promote special events and high-margin offers during the conversation.
-
----
-
-### *Note:* 
-Hey Kartik, I've left the hardcoded API key for testing purposes so that you can just plug and play it. If you want to test with your own model, please do the necessary changes in `llm_client.py` file.
