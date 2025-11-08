@@ -9,10 +9,6 @@ The agent is built using a framework-free, decoupled architecture to demonstrate
 [Demo Video](demo.mp4)
 
 ---
-### *Note:* 
-Hey, I've left the hardcoded API key for testing purposes so that you can just plug and play it. If you want to test with your own model, please do the necessary changes in `llm_client.py` file.
-
----
 
 ## 🛠️ Setup Instructions
 
@@ -21,7 +17,7 @@ To run the agent locally, follow these steps:
 1.  **Clone the repository:**
     ```bash
     git clone https://github.com/nandan2003/SarvamAI-Assignment.git
-    cd SarvamAI-Assignment-Nandan-Vallamdasu
+    cd restaurant-goodfoods
     ```
 
 2.  **Create and activate a virtual environment:**
